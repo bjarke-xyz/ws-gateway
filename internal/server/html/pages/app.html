@@ -1,0 +1,12 @@
+{{define "content"}}
+<h1>{{.Title}}</h1>
+<a href="/admin">Back</a>
+{{ if .Error }}
+<p class="error">{{.Error}}</p>
+{{ end }}
+<hr />
+<form method="post">
+  <input name="name" value="{{.App.Name}}" />
+  <button type="submit">Submit</button>
+</form>
+{{end}}

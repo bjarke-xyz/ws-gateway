@@ -1,0 +1,30 @@
+{{define "content"}}
+<h1>{{.Title}}</h1>
+{{ if .Error }}
+<p class="error">{{.Error}}</p>
+{{ end }}
+<hr />
+<h3>Apps</h3>
+<table>
+  <thead>
+    <tr>
+      <th>Id</th>
+      <th>Name</th>
+      <th>Created at</th>
+      <th>Updated at</th>
+      <th>Edit</th>
+    </tr>
+  </thead>
+  <tbody>
+    {{ range .Apps }}
+    <tr>
+      <td>{{ .ID }}</td>
+      <td>{{ .Name }}</td>
+      <td>{{ .CreatedAt }}</td>
+      <td>{{ .UpdatedAt }}</td>
+      <td><a href="/admin/app/{{.ID}}">Edit</a></td>
+    </tr>
+    {{ end }}
+  </tbody>
+</table>
+{{end}}
