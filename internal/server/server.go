@@ -15,6 +15,7 @@ import (
 	"github.com/bjarke-xyz/ws-gateway/internal/service"
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
+	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
@@ -111,14 +112,18 @@ func (s *server) routes() *chi.Mux {
 			token, _, _ := TokenFromContext(r.Context())
 			appId := chi.URLParam(r, "app-id")
 			errMsg := r.URL.Query().Get("error")
-			app, err := s.appRepository.GetByID(r.Context(), appId)
-			if err != nil {
-				s.logger.Error("error getting apps by user id", "error", err)
-				errMsg = errMsg + " error getting apps"
-			}
-			if app.OwnerUserID != token.Subject {
-				w.WriteHeader(http.StatusForbidden)
-				return
+			var app domain.Application
+			var err error
+			if appId != "null" {
+				app, err = s.appRepository.GetByID(r.Context(), appId)
+				if err != nil {
+					s.logger.Error("error getting apps by user id", "error", err)
+					errMsg = errMsg + " error getting apps"
+				}
+				if app.OwnerUserID != token.Subject {
+					w.WriteHeader(http.StatusForbidden)
+					return
+				}
 			}
 			params := html.AppParams{
 				Title: "App",
@@ -129,24 +134,51 @@ func (s *server) routes() *chi.Mux {
 		})
 		r.Post("/app/{app-id}", func(w http.ResponseWriter, r *http.Request) {
 			token, _, _ := TokenFromContext(r.Context())
-			appId := chi.URLParam(r, "app-id")
 			errMsg := ""
-			app, err := s.appRepository.GetByID(r.Context(), appId)
-			if err != nil {
-				s.logger.Error("error getting apps by user id", "error", err)
+			appId := chi.URLParam(r, "app-id")
+			name := r.FormValue("name")
+			delete := r.FormValue("delete") == "true"
+			if appId == "null" {
+				appId = uuid.NewString()
+				app := domain.Application{
+					ID:          appId,
+					OwnerUserID: token.Subject,
+					Name:        name,
+				}
+				err := s.appRepository.Create(r.Context(), &app)
+				if err != nil {
+					s.logger.Error("error getting apps by user id", "error", err)
+					errMsg = "failed to create"
+				}
+			} else {
+				app, err := s.appRepository.GetByID(r.Context(), appId)
+				if err != nil {
+					s.logger.Error("error getting apps by user id", "error", err)
+				}
+				if app.OwnerUserID != token.Subject {
+					w.WriteHeader(http.StatusForbidden)
+					return
+				}
+				if delete {
+					err = s.appRepository.Delete(r.Context(), app.ID)
+					if err != nil {
+						s.logger.Error("failed to delete app", "error", err)
+						errMsg = "Failed to delete"
+					}
+				} else {
+					app.Name = name
+					err = s.appRepository.Update(r.Context(), &app)
+					if err != nil {
+						s.logger.Error("failed to update app", "error", err)
+						errMsg = "Failed to update"
+					}
+				}
 			}
-			if app.OwnerUserID != token.Subject {
-				w.WriteHeader(http.StatusForbidden)
-				return
+			if delete {
+				http.Redirect(w, r, fmt.Sprintf("/admin/?%v", errorQuery(errMsg)), http.StatusSeeOther)
+			} else {
+				http.Redirect(w, r, fmt.Sprintf("/admin/app/%v?%v", appId, errorQuery(errMsg)), http.StatusSeeOther)
 			}
-			updatedName := r.FormValue("name")
-			app.Name = updatedName
-			err = s.appRepository.Update(r.Context(), &app)
-			if err != nil {
-				s.logger.Error("failed to update app", "error", err)
-				errMsg = "Failed to update"
-			}
-			http.Redirect(w, r, fmt.Sprintf("/admin/app/%v?%v", appId, errorQuery(errMsg)), http.StatusSeeOther)
 		})
 
 	})

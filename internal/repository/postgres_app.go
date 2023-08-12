@@ -47,3 +47,18 @@ func (p *postgresAppRepository) Update(ctx context.Context, app *domain.Applicat
 	_, err := p.conn.Exec(ctx, "UPDATE apps SET name = $1, updated_at = NOW() WHERE id = $2", app.Name, app.ID)
 	return err
 }
+
+// Create implements domain.ApplicationRepository.
+func (p *postgresAppRepository) Create(ctx context.Context, app *domain.Application) error {
+	query := `
+		INSERT INTO apps (id, owner_user_id, name, created_at)
+		VALUES ($1, $2, $3, NOW())`
+	_, err := p.conn.Exec(ctx, query, app.ID, app.OwnerUserID, app.Name)
+	return err
+}
+
+// Delete implements domain.ApplicationRepository.
+func (p *postgresAppRepository) Delete(ctx context.Context, appID string) error {
+	_, err := p.conn.Exec(ctx, "DELETE FROM apps WHERE id = $1", appID)
+	return err
+}

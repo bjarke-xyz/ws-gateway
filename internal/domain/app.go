@@ -17,4 +17,6 @@ type ApplicationRepository interface {
 	GetByID(context.Context, string) (Application, error)
 	GetByUserID(context.Context, string) ([]Application, error)
 	Update(context.Context, *Application) error
+	Create(context.Context, *Application) error
+	Delete(context.Context, string) error
 }

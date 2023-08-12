@@ -9,4 +9,10 @@
   <input name="name" value="{{.App.Name}}" />
   <button type="submit">Submit</button>
 </form>
-{{end}}
+<hr />
+{{ if .App.ID }}
+<form method="post" onsubmit="return confirm('Are you sure?');">
+  <input type="hidden" name="delete" value="true" />
+  <button type="submit">Delete</button>
+</form>
+{{ end }} {{end}}
