@@ -1,8 +1,8 @@
 {{define "content"}}
 <h1>{{.Title}}</h1>
-{{ if .Error }}
-<p class="error">{{.Error}}</p>
-{{ end }}
+{{ if .Errors }} {{ range .Errors }}
+<p class="error">{{.}}</p>
+{{ end }} {{ end }}
 <hr />
 <h3>Apps</h3>
 <table>
@@ -27,4 +27,35 @@
     {{ end }}
   </tbody>
 </table>
+
+<h3>Keys</h3>
+<table>
+  <thead>
+    <tr>
+      <th>Id</th>
+      <th>Key preview</th>
+      <th>Created at</th>
+      <th>Updated at</th>
+      <th>Gives access to</th>
+      <th>Edit</th>
+    </tr>
+  </thead>
+  <tbody>
+    {{ range .Keys }}
+    <tr>
+      <td>{{ .ID }}</td>
+      <td>{{ .KeyPreview }}</td>
+      <td>{{ .CreatedAt }}</td>
+      <td>{{ .UpdatedAt }}</td>
+      <td>
+        {{ range .Access }}
+        <p>{{ (index $.AppsByID .AppID).Name }}</p>
+        {{ end }}
+      </td>
+      <td><a href="/admin/key/{{.ID}}">Edit</a></td>
+    </tr>
+    {{ end }}
+  </tbody>
+</table>
+
 {{end}}

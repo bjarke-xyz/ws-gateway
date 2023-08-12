@@ -18,9 +18,11 @@ var (
 )
 
 type AdminParams struct {
-	Title string
-	Error string
-	Apps  []domain.Application
+	Title    string
+	Errors   []string
+	Apps     []domain.Application
+	AppsByID map[string]domain.Application
+	Keys     []domain.ApiKey
 }
 
 func AdminPage(w io.Writer, p AdminParams) error {

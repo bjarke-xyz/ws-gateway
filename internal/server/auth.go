@@ -97,11 +97,12 @@ func (s *server) firebaseJwtVerifier(next http.Handler) http.Handler {
 		if err != nil {
 			w.WriteHeader(http.StatusInternalServerError)
 			s.logger.Error("failed to get firebase auth", "error", err)
+			return
 		}
 
 		token, err := auth.VerifyIDToken(ctx, idTokenCookie.Value)
 		if err != nil {
-			http.Error(w, err.Error(), http.StatusUnauthorized)
+			http.Redirect(w, r, "/login?"+errorQuery(err.Error()), http.StatusSeeOther)
 			return
 		}
 		// TODO: check claims to see if user is allowed to access this product

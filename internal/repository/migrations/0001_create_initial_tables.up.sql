@@ -2,6 +2,7 @@ CREATE TABLE IF NOT EXISTS api_keys(
     id TEXT PRIMARY KEY,
     owner_user_id TEXT,
     key_hash TEXT,
+    key_preview TEXT,
     created_at TIMESTAMP,
     updated_at TIMESTAMP NULL
 );

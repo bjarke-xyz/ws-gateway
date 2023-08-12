@@ -30,6 +30,7 @@ type server struct {
 	allowedUsers []string
 
 	appRepository domain.ApplicationRepository
+	keyRepository domain.ApiKeyRepository
 
 	staticFilesFs fs.FS
 }
@@ -40,11 +41,13 @@ func NewServer(ctx context.Context, logger *slog.Logger, app *firebase.App, auth
 		return nil, err
 	}
 	appRepo := repository.NewPostgresApp(pool)
+	keyRepo := repository.NewPostgresKey(pool)
 	return &server{
 		logger:        logger,
 		app:           app,
 		authClient:    authClient,
 		appRepository: appRepo,
+		keyRepository: keyRepo,
 		staticFilesFs: staticFilesFs,
 	}, nil
 }
@@ -81,15 +84,26 @@ func (s *server) routes() *chi.Mux {
 		r.Get("/", func(w http.ResponseWriter, r *http.Request) {
 			token, _, _ := TokenFromContext(r.Context())
 			apps, err := s.appRepository.GetByUserID(r.Context(), token.Subject)
-			errMsg := ""
+			errMsgs := make([]string, 0)
 			if err != nil {
-				s.logger.Error("error getting apps by user id", "error", err)
-				errMsg = "Error getting apps"
+				s.logger.Error("error getting apps by user id", "error", err, "userId", token.Subject)
+				errMsgs = append(errMsgs, "Error getting apps")
+			}
+			keys, err := s.keyRepository.GetByUserID(r.Context(), token.Subject)
+			if err != nil {
+				s.logger.Error("error getting keys by user id", "error", err, "userId", token.Subject)
+				errMsgs = append(errMsgs, "Error getting keys")
+			}
+			appsByID := make(map[string]domain.Application)
+			for _, v := range apps {
+				appsByID[v.ID] = v
 			}
 			params := html.AdminParams{
-				Title: "Admin",
-				Apps:  apps,
-				Error: errMsg,
+				Title:    "Admin",
+				Errors:   errMsgs,
+				Apps:     apps,
+				AppsByID: appsByID,
+				Keys:     keys,
 			}
 			html.AdminPage(w, params)
 		})
@@ -100,6 +114,7 @@ func (s *server) routes() *chi.Mux {
 			app, err := s.appRepository.GetByID(r.Context(), appId)
 			if err != nil {
 				s.logger.Error("error getting apps by user id", "error", err)
+				errMsg = errMsg + " error getting apps"
 			}
 			if app.OwnerUserID != token.Subject {
 				w.WriteHeader(http.StatusForbidden)
@@ -107,8 +122,8 @@ func (s *server) routes() *chi.Mux {
 			}
 			params := html.AppParams{
 				Title: "App",
-				App:   app,
 				Error: errMsg,
+				App:   app,
 			}
 			html.AppPage(w, params)
 		})
@@ -133,6 +148,7 @@ func (s *server) routes() *chi.Mux {
 			}
 			http.Redirect(w, r, fmt.Sprintf("/admin/app/%v?%v", appId, errorQuery(errMsg)), http.StatusSeeOther)
 		})
+
 	})
 	return r
 }
