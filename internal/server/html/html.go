@@ -14,6 +14,7 @@ var files embed.FS
 var (
 	adminTemplate = parse("pages/admin.html")
 	appTemplate   = parse("pages/app.html")
+	keyTemplate   = parse("pages/key.html")
 	loginTemplate = parse("pages/login.html")
 )
 
@@ -37,6 +38,18 @@ type AppParams struct {
 
 func AppPage(w io.Writer, p AppParams) error {
 	return appTemplate.Execute(w, p)
+}
+
+type KeyParams struct {
+	Title            string
+	Errors           []string
+	Key              domain.ApiKey
+	KeyAccessByAppID map[string]domain.ApiKeyAccess
+	Apps             []domain.Application
+}
+
+func KeyPage(w io.Writer, p KeyParams) error {
+	return keyTemplate.Execute(w, p)
 }
 
 type LoginParams struct {

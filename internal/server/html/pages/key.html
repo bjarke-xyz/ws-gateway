@@ -1,0 +1,41 @@
+{{define "content"}}
+<h1>{{.Title}}</h1>
+<a href="/admin">Back</a>
+{{ if .Errors }} {{ range .Errors }}
+<p class="error">{{.}}</p>
+{{ end }} {{ end }}
+<hr />
+<form method="post">
+  <fieldset>
+    <legend>Choose which app can be used with this key:</legend>
+
+    {{ range .Apps }}
+    <div>
+      <input
+        type="checkbox"
+        id="{{.ID}}"
+        name="apps"
+        value="{{.ID}}"
+        {{if
+        eq
+        .ID
+        (index
+        $.KeyAccessByAppID
+        .ID).AppID
+        }}
+        checked="checked"
+        {{end}}
+      />
+      <label for="{{.ID}}">{{.Name}}</label>
+    </div>
+    {{ end }}
+  </fieldset>
+  <button type="submit">Submit</button>
+</form>
+<hr />
+{{ if .Key.ID }}
+<form method="post" onsubmit="return confirm('Are you sure?');">
+  <input type="hidden" name="delete" value="true" />
+  <button type="submit">Delete</button>
+</form>
+{{ end }} {{end}}

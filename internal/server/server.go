@@ -82,8 +82,12 @@ func (s *server) routes() *chi.Mux {
 	r.Route("/admin", func(r chi.Router) {
 		r.Use(s.firebaseJwtVerifier)
 		r.Get("/", s.handleGetAdmin)
+
 		r.Get("/app/{app-id}", s.handleGetApp)
 		r.Post("/app/{app-id}", s.handlePostApp)
+
+		r.Get("/key/{key-id}", s.handleGetKey)
+		r.Post("/key/{key-id}", s.handlePostKey)
 
 	})
 	return r
