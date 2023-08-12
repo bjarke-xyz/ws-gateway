@@ -2,7 +2,6 @@ package server
 
 import (
 	"context"
-	"encoding/base64"
 	"fmt"
 	"net/http"
 
@@ -208,7 +207,7 @@ func (s *server) handlePostKey(w http.ResponseWriter, r *http.Request) {
 			redirectToAdmin(w, r, "failed to hash api key")
 			return
 		}
-		apiKeyHash := base64.StdEncoding.EncodeToString(apiKeyHashBytes)
+		apiKeyHash := string(apiKeyHashBytes)
 		key := domain.ApiKey{
 			ID:          keyId,
 			OwnerUserID: token.Subject,
