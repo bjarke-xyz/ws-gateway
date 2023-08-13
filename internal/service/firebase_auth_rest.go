@@ -77,3 +77,41 @@ func (f *FirebaseAuthRestClient) SignInWithEmailAndPassword(ctx context.Context,
 	}
 	return response, nil
 }
+
+type CustomTokenResponse struct {
+	IdToken      string         `json:"idToken"`
+	RefreshToken string         `json:"refreshToken"`
+	Error        *ErrorResponse `json:"error"`
+}
+
+func (f *FirebaseAuthRestClient) SignInWithCustomToken(ctx context.Context, customToken string) (CustomTokenResponse, error) {
+	url := "https://identitytoolkit.googleapis.com/v1/accounts:signInWithCustomToken?key=" + f.apiKey
+	body := make(map[string]string, 0)
+	body["token"] = customToken
+	body["returnSecureToken"] = "true"
+	bodyJson, err := json.Marshal(body)
+	if err != nil {
+		return CustomTokenResponse{}, err
+	}
+	bodyReader := bytes.NewReader(bodyJson)
+	req, err := http.NewRequestWithContext(ctx, "POST", url, bodyReader)
+	if err != nil {
+		return CustomTokenResponse{}, fmt.Errorf("error creating request: %w", err)
+	}
+	resp, err := f.httpClient.Do(req)
+	if err != nil {
+		return CustomTokenResponse{}, fmt.Errorf("error sending request: %w", err)
+	}
+	defer resp.Body.Close()
+	respBytes, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return CustomTokenResponse{}, fmt.Errorf("error reading response: %w", err)
+	}
+
+	response := CustomTokenResponse{}
+	err = json.Unmarshal(respBytes, &response)
+	if err != nil {
+		return CustomTokenResponse{}, err
+	}
+	return response, nil
+}

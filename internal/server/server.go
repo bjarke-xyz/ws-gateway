@@ -3,10 +3,12 @@ package server
 import (
 	"context"
 	"embed"
+	"encoding/json"
 	"fmt"
 	"io/fs"
 	"log/slog"
 	"net/http"
+	"sync"
 
 	firebase "firebase.google.com/go/v4"
 	"github.com/bjarke-xyz/ws-gateway/internal/domain"
@@ -27,10 +29,10 @@ type server struct {
 	app        *firebase.App
 	authClient *service.FirebaseAuthRestClient
 
-	allowedUsers []string
-
 	appRepository domain.ApplicationRepository
 	keyRepository domain.ApiKeyRepository
+
+	wsTopicCollection *WsTopicCollection
 
 	staticFilesFs fs.FS
 }
@@ -42,13 +44,19 @@ func NewServer(ctx context.Context, logger *slog.Logger, app *firebase.App, auth
 	}
 	appRepo := repository.NewPostgresApp(pool)
 	keyRepo := repository.NewPostgresKey(pool)
+	wsTopicCollection := &WsTopicCollection{
+		Topics:  make(map[TopicID]*WsTopic),
+		Wg:      &sync.WaitGroup{},
+		RWMutex: &sync.RWMutex{},
+	}
 	return &server{
-		logger:        logger,
-		app:           app,
-		authClient:    authClient,
-		appRepository: appRepo,
-		keyRepository: keyRepo,
-		staticFilesFs: staticFilesFs,
+		logger:            logger,
+		app:               app,
+		authClient:        authClient,
+		appRepository:     appRepo,
+		keyRepository:     keyRepo,
+		wsTopicCollection: wsTopicCollection,
+		staticFilesFs:     staticFilesFs,
 	}, nil
 }
 func (s *server) Server(port int) *http.Server {
@@ -62,6 +70,12 @@ func errorQuery(errMsg string) string {
 		return ""
 	}
 	return fmt.Sprintf("error=%v", errMsg)
+}
+func jsonResponse(w http.ResponseWriter, status int, data any) {
+	w.WriteHeader(status)
+	if data != nil {
+		json.NewEncoder(w).Encode(data)
+	}
 }
 func (s *server) routes() *chi.Mux {
 	r := chi.NewRouter()
@@ -88,7 +102,17 @@ func (s *server) routes() *chi.Mux {
 
 		r.Get("/key/{key-id}", s.handleGetKey)
 		r.Post("/key/{key-id}", s.handlePostKey)
-
 	})
+
+	r.Route("/api", func(r chi.Router) {
+		r.Route("/app/{app-id}", func(r chi.Router) {
+			r.Use(s.apiKeyVerifier)
+			r.Post("/ticket", s.handleApiCreateTicket)
+			r.Post("/topic/{topic}/broadcast", s.handleApiBroadcast)
+		})
+	})
+
+	r.Get("/ws/app/{app-id}/topic/{topic}", s.wsClientMiddleware(s.wsTopicHandler))
+
 	return r
 }

@@ -2,7 +2,10 @@ module github.com/bjarke-xyz/ws-gateway
 
 go 1.21.0
 
-require github.com/jackc/pgx/v5 v5.4.3
+require (
+	github.com/gorilla/websocket v1.5.0
+	github.com/jackc/pgx/v5 v5.4.3
+)
 
 require (
 	github.com/hashicorp/errwrap v1.1.0 // indirect
