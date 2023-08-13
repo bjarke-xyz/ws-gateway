@@ -201,7 +201,7 @@ func (s *server) handlePostKey(w http.ResponseWriter, r *http.Request) {
 	if keyId == "null" {
 		keyId = uuid.NewString()
 		apiKey := uuid.NewString()
-		apiKeyHashBytes, err := bcrypt.GenerateFromPassword([]byte(apiKey), 14)
+		apiKeyHashBytes, err := bcrypt.GenerateFromPassword([]byte(apiKey), bcrypt.DefaultCost)
 		if err != nil {
 			s.logger.Error("error hashing apiKey", "error", err)
 			redirectToAdmin(w, r, "failed to hash api key")
