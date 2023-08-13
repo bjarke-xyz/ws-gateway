@@ -48,7 +48,7 @@ func (s *server) handleGetAdmin(w http.ResponseWriter, r *http.Request) {
 		appsByID[v.ID] = v
 	}
 	params := html.AdminParams{
-		Title:    "Admin",
+		Title:    "ws-gateway",
 		Errors:   errMsgs,
 		Apps:     apps,
 		AppsByID: appsByID,

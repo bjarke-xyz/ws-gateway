@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"slices"
 	"time"
 
 	"firebase.google.com/go/v4/auth"
@@ -56,8 +57,24 @@ func (s *server) handleLogin(w http.ResponseWriter, r *http.Request) {
 		http.Redirect(w, r, fmt.Sprintf("/login?error=%v", resp.Error.Error()), http.StatusSeeOther)
 		return
 	}
+	auth, err := s.app.Auth(r.Context())
+	if err != nil {
+		s.logger.Error("failed to get firebase auth", "error", err)
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
 
-	// TODO: check claims to see if user is allowed to access this product
+	token, err := auth.VerifyIDToken(r.Context(), resp.IdToken)
+	if err != nil {
+		http.Redirect(w, r, "/login?"+errorQuery(err.Error()), http.StatusSeeOther)
+		return
+	}
+
+	if !hasProduct(token, "ws-gateway") {
+		s.logger.Error("'ws-gateway' not found in products claim", "where", "handleLogin")
+		http.Redirect(w, r, "/login?"+errorQuery("'ws-gateway' not found in products claim"), http.StatusSeeOther)
+		return
+	}
 
 	// 5 days
 	cookieExpires := time.Now().Add(5 * 24 * time.Hour)
@@ -100,8 +117,8 @@ func (s *server) firebaseJwtVerifier(next http.Handler) http.Handler {
 		ctx := r.Context()
 		auth, err := s.app.Auth(ctx)
 		if err != nil {
-			w.WriteHeader(http.StatusInternalServerError)
 			s.logger.Error("failed to get firebase auth", "error", err)
+			w.WriteHeader(http.StatusInternalServerError)
 			return
 		}
 
@@ -110,10 +127,19 @@ func (s *server) firebaseJwtVerifier(next http.Handler) http.Handler {
 			http.Redirect(w, r, "/login?"+errorQuery(err.Error()), http.StatusSeeOther)
 			return
 		}
-		// TODO: check claims to see if user is allowed to access this product
+		if !hasProduct(token, "ws-gateway") {
+			s.logger.Error("'ws-gateway' not found in products claim", "where", "firebaseJwtVerifier")
+			http.Redirect(w, r, "/login?"+errorQuery("'ws-gateway' not found in products claim"), http.StatusSeeOther)
+			return
+		}
 		ctx = NewContext(ctx, token, refreshTokenCookie.Value, err)
 		next.ServeHTTP(w, r.WithContext(ctx))
 	})
+}
+
+func hasProduct(token *auth.Token, product any) bool {
+	products, ok := (token.Claims["products"]).([]any)
+	return ok && slices.Contains(products, product)
 }
 
 type contextKey struct {
