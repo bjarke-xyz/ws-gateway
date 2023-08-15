@@ -46,7 +46,7 @@ func NewServer(ctx context.Context, logger *slog.Logger, app *firebase.App, auth
 	keyRepo := repository.NewPostgresKey(pool)
 	wsTopicCollection := &WsTopicCollection{
 		Topics:  make(map[TopicID]*WsTopic),
-		Wg:      &sync.WaitGroup{},
+		Cancels: make(map[TopicID]context.CancelFunc),
 		RWMutex: &sync.RWMutex{},
 	}
 	return &server{
@@ -110,6 +110,10 @@ func (s *server) routes() *chi.Mux {
 			r.Post("/ticket", s.handleApiCreateTicket)
 			r.Post("/topic/{topic}/broadcast", s.handleApiBroadcast)
 		})
+	})
+
+	r.Get("/api/test", func(w http.ResponseWriter, r *http.Request) {
+		s.logger.Info("test", "topics", len(s.wsTopicCollection.Topics))
 	})
 
 	r.Get("/ws/app/{app-id}/topic/{topic}", s.wsClientMiddleware(s.wsTopicHandler))

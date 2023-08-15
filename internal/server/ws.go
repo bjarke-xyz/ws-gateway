@@ -1,6 +1,7 @@
 package server
 
 import (
+	"context"
 	"log/slog"
 	"net/http"
 	"sync"
@@ -10,8 +11,8 @@ import (
 )
 
 type WsTopicCollection struct {
-	Topics map[TopicID]*WsTopic
-	Wg     *sync.WaitGroup // TODO: What is this used for?
+	Topics  map[TopicID]*WsTopic
+	Cancels map[TopicID]context.CancelFunc
 	*sync.RWMutex
 }
 
@@ -41,25 +42,42 @@ func (tc *WsTopicCollection) createTopicIfNotExists(appId string, topic string, 
 			clients:        make(map[chan []byte]bool),
 			RWMutex:        &sync.RWMutex{},
 		}
+		ctx, cancel := context.WithCancel(context.Background())
 		tp = &WsTopic{
-			Clients: make(map[ClientID]*WsClient),
-			Topic:   topic,
-			ID:      topicId,
-			Broker:  broker,
-			RWMutex: &sync.RWMutex{},
+			Clients:         make(map[ClientID]*WsClient),
+			Topic:           topic,
+			ID:              topicId,
+			Broker:          broker,
+			TopicCollection: tc,
+			ctx:             ctx,
+			RWMutex:         &sync.RWMutex{},
 		}
 		tc.Topics[topicId] = tp
-		// TODO: How to clean this up?
-		go tp.Broker.Listen(logger)
+		tc.Cancels[topicId] = cancel
+		go tp.Listen(logger)
 		return tp
 	}
 }
 
+func (tc *WsTopicCollection) deleteTopic(topicId TopicID) {
+	tc.Lock()
+	defer tc.Unlock()
+	cancel, ok := tc.Cancels[topicId]
+	if !ok {
+		return
+	}
+	cancel()
+	delete(tc.Topics, topicId)
+	delete(tc.Cancels, topicId)
+}
+
 type WsTopic struct {
-	Clients map[ClientID]*WsClient
-	Topic   string
-	ID      TopicID
-	Broker  *WsBroker
+	Clients         map[ClientID]*WsClient
+	Topic           string
+	ID              TopicID
+	Broker          *WsBroker
+	TopicCollection *WsTopicCollection
+	ctx             context.Context
 	*sync.RWMutex
 }
 
@@ -73,6 +91,9 @@ func (tp *WsTopic) del(clientId ClientID) {
 	tp.Lock()
 	defer tp.Unlock()
 	delete(tp.Clients, clientId)
+	if len(tp.Clients) == 0 {
+		tp.TopicCollection.deleteTopic(tp.ID)
+	}
 }
 
 type TopicID string
@@ -124,23 +145,26 @@ func (b *WsBroker) delClient(s chan []byte) {
 	delete(b.clients, s)
 }
 
-func (b *WsBroker) Listen(logger *slog.Logger) {
+func (tp *WsTopic) Listen(logger *slog.Logger) {
 	for {
 		select {
-		case s := <-b.newClients:
+		case <-tp.ctx.Done():
+			logger.Info("ctx.Done called in broker", "clients", len(tp.Broker.clients))
+			return
+		case s := <-tp.Broker.newClients:
 			// A new client has connected.
 			// Register their message channel
-			b.registerClient(s)
-			logger.Info("Client added", "clients", len(b.clients))
-		case s := <-b.closingClients:
+			tp.Broker.registerClient(s)
+			logger.Info("Client added", "clients", len(tp.Broker.clients))
+		case s := <-tp.Broker.closingClients:
 			// A client has dettached and we want to
 			// stop sending them messages.
-			b.delClient(s)
-			logger.Info("Removed client", "clients", len(b.clients))
-		case event := <-b.Notifier:
+			tp.Broker.delClient(s)
+			logger.Info("Removed client", "clients", len(tp.Broker.clients))
+		case event := <-tp.Broker.Notifier:
 			// We got a new event from the outside!
 			// Send event to all connected clients
-			for clientMessageChan := range b.clients {
+			for clientMessageChan := range tp.Broker.clients {
 				clientMessageChan <- event
 			}
 		}
