@@ -112,10 +112,6 @@ func (s *server) routes() *chi.Mux {
 		})
 	})
 
-	r.Get("/api/test", func(w http.ResponseWriter, r *http.Request) {
-		s.logger.Info("test", "topics", len(s.wsTopicCollection.Topics))
-	})
-
 	r.Get("/ws/app/{app-id}/topic/{topic}", s.wsClientMiddleware(s.wsTopicHandler))
 
 	return r
